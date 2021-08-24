@@ -48,8 +48,8 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_
         import onnx
 
         print(f'\n{prefix} starting export with onnx {onnx.__version__}...')
-        f = file.with_suffix('.onnx')
         if export_three_output:
+            f = file.with_suffix('.three_output_opset%d.onnx'%opset)
             torch.onnx.export(model, img, f, verbose=False, opset_version=opset,
                               training=torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL,
                               do_constant_folding=not train,
@@ -57,6 +57,7 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_
                               output_names=['output1', 'output2', 'output3'],
                               dynamic_axes=None)
         else:
+            f = file.with_suffix('.one_output_opset%d.onnx'%opset)
             torch.onnx.export(model, img, f, verbose=False, opset_version=opset,
                               training=torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL,
                               do_constant_folding=not train,

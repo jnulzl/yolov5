@@ -69,6 +69,10 @@ python export.py --weights build_test/weights/yolov5s.pt  --img-size 640 --inclu
 
 # 3、包含Detect层，与官方导出的onnx模型基本一致，但是只保留了一个真正有用的输出
 python export.py --weights build_test/weights/yolov5s.pt  --img-size 640 --include 'onnx' --opset 11 --simplify
+
+# 4、一键执行上述2和3
+./convert_to_onnx.sh runs/train/exp4/weights/best.pt 320
+
 ```
 
 **注意：** 如果同时用了`--export_origin`和` --export_three_output`，只有`--export_origin`生效
