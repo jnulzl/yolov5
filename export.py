@@ -40,7 +40,7 @@ def export_torchscript(model, img, file, optimize):
         print(f'{prefix} export failure: {e}')
 
 
-def export_onnx(model, img, file, opset, train, dynamic, simplify):
+def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_output):
     # ONNX model export
     prefix = colorstr('ONNX:')
     try:
@@ -49,14 +49,22 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify):
 
         print(f'\n{prefix} starting export with onnx {onnx.__version__}...')
         f = file.with_suffix('.onnx')
-        torch.onnx.export(model, img, f, verbose=False, opset_version=opset,
-                          training=torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL,
-                          do_constant_folding=not train,
-                          input_names=['images'],
-                          output_names=['output'],
-                          dynamic_axes={'images': {0: 'batch', 2: 'height', 3: 'width'},  # shape(1,3,640,640)
-                                        'output': {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
-                                        } if dynamic else None)
+        if export_three_output:
+            torch.onnx.export(model, img, f, verbose=False, opset_version=opset,
+                              training=torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL,
+                              do_constant_folding=not train,
+                              input_names=['input'],
+                              output_names=['output1', 'output2', 'output3'],
+                              dynamic_axes=None)
+        else:
+            torch.onnx.export(model, img, f, verbose=False, opset_version=opset,
+                              training=torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL,
+                              do_constant_folding=not train,
+                              input_names=['input'],
+                              output_names=['output'],
+                              dynamic_axes={'input': {0: 'batch', 2: 'height', 3: 'width'},  # shape(1,3,640,640)
+                                            'output': {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
+                                            } if dynamic else None)
 
         # Checks
         model_onnx = onnx.load(f)  # load onnx model
@@ -108,6 +116,8 @@ def run(weights='./yolov5s.pt',  # weights path
         include=('torchscript', 'onnx', 'coreml'),  # include formats
         half=False,  # FP16 half-precision export
         inplace=False,  # set YOLOv5 Detect() inplace=True
+        export_origin=False, # set origin export mode
+        export_three_output=False, # set export three output
         train=False,  # model.train() mode
         optimize=False,  # TorchScript: optimize for mobile
         dynamic=False,  # ONNX: dynamic axes
@@ -142,6 +152,8 @@ def run(weights='./yolov5s.pt',  # weights path
                 m.act = SiLU()
         elif isinstance(m, Detect):
             m.inplace = inplace
+            m.export_origin = export_origin
+            m.export_three_output = export_three_output
             m.onnx_dynamic = dynamic
             # m.forward = m.forward_export  # assign forward (optional)
 
@@ -153,7 +165,7 @@ def run(weights='./yolov5s.pt',  # weights path
     if 'torchscript' in include:
         export_torchscript(model, img, file, optimize)
     if 'onnx' in include:
-        export_onnx(model, img, file, opset, train, dynamic, simplify)
+        export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_output)
     if 'coreml' in include:
         export_coreml(model, img, file)
 
@@ -172,11 +184,13 @@ def parse_opt():
     parser.add_argument('--include', nargs='+', default=['torchscript', 'onnx', 'coreml'], help='include formats')
     parser.add_argument('--half', action='store_true', help='FP16 half-precision export')
     parser.add_argument('--inplace', action='store_true', help='set YOLOv5 Detect() inplace=True')
+    parser.add_argument('--export_origin', action='store_true', help='set origin export mode export_origin=False')
+    parser.add_argument('--export_three_output', action='store_true', help='set export_three_output=True')
     parser.add_argument('--train', action='store_true', help='model.train() mode')
     parser.add_argument('--optimize', action='store_true', help='TorchScript: optimize for mobile')
     parser.add_argument('--dynamic', action='store_true', help='ONNX: dynamic axes')
     parser.add_argument('--simplify', action='store_true', help='ONNX: simplify model')
-    parser.add_argument('--opset', type=int, default=12, help='ONNX: opset version')
+    parser.add_argument('--opset', type=int, default=11, help='ONNX: opset version')
     opt = parser.parse_args()
     return opt
 

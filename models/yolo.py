@@ -46,10 +46,19 @@ class Detect(nn.Module):
         self.register_buffer('anchor_grid', a.clone().view(self.nl, 1, -1, 1, 1, 2))  # shape(nl,1,na,1,1,2)
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.inplace = inplace  # use in-place ops (e.g. slice assignment)
+        """
+          1、export_origin = True,  原始导出模式, export_three_output不会生效.
+          2、export_origin = False,  自定义导出模式, 此时:
+                a、export_three_output = True，则导出三个输出，后续层自己用cpu进行处理
+                b、export_three_output = False，则导出一个输出，后续处理与原始导出模式基本一致
+        """
+        self.export_origin = True # origin export mode
+        self.export_three_output = False # export three output and then processing left layers by myself using cpu
 
     def forward(self, x):
         # x = x.copy()  # for profiling
         z = []  # inference output
+        z_jnulzl = [] # add by jnulzl
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
@@ -60,6 +69,9 @@ class Detect(nn.Module):
                     self.grid[i] = self._make_grid(nx, ny).to(x[i].device)
 
                 y = x[i].sigmoid()
+                if self.export_three_output:
+                    z_jnulzl.append(y[0]) # no batch size dim
+
                 if self.inplace:
                     y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
                     y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
@@ -68,8 +80,14 @@ class Detect(nn.Module):
                     wh = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i].view(1, self.na, 1, 1, 2)  # wh
                     y = torch.cat((xy, wh, y[..., 4:]), -1)
                 z.append(y.view(bs, -1, self.no))
+       
+        if self.export_origin:
+            return x if self.training else (torch.cat(z, 1), x)
+        elif self.export_three_output:
+            return z_jnulzl
+        else:
+            return torch.cat(z, 1)
 
-        return x if self.training else (torch.cat(z, 1), x)
 
     @staticmethod
     def _make_grid(nx=20, ny=20):
@@ -152,6 +170,11 @@ class Model(nn.Module):
                     LOGGER.info(f"{'time (ms)':>10s} {'GFLOPs':>10s} {'params':>10s}  {'module'}")
                 LOGGER.info(f'{dt[-1]:10.2f} {o:10.2f} {m.np:10.0f}  {m.type}')
 
+            if isinstance(m, Detect):
+                if not hasattr(m, 'export_origin'):
+                    m.export_origin = True
+                if not hasattr(m, 'export_three_output'):
+                    m.export_three_output = False
             x = m(x)  # run
             y.append(x if m.i in self.save else None)  # save output
 
