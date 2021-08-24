@@ -24,6 +24,8 @@ python convertCaffe.py weights/ONNX_MODEL_FILE # 此处的onnx模型必须是三
 
 # caffe2nnie
 
+- prototxt修改
+
 由于我自己实现的upsample层的参数名称与nnie支持的upsample层的不一致，需要进行如下更改
 
 ```shell
@@ -46,3 +48,7 @@ python convertCaffe.py weights/ONNX_MODEL_FILE # 此处的onnx模型必须是三
   }
   ......  
 ```
+
+- caffe2wk
+
+用[nnie_mapper](https://github.com/jnulzl/nnie_mapper)进行caffe2wk
