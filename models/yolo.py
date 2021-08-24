@@ -88,6 +88,9 @@ class Detect(nn.Module):
         if self.export_origin:
             return x if self.training else (torch.cat(z, 1), x)
         elif self.export_three_output:
+            print("Anchors :")
+            for item in self.anchor_grid:
+                print(item.flatten())
             return z_jnulzl
         else:
             return torch.cat(z, 1)
