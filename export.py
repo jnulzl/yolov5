@@ -40,7 +40,7 @@ def export_torchscript(model, img, file, optimize):
         print(f'{prefix} export failure: {e}')
 
 
-def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_output):
+def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_output, img_size):
     # ONNX model export
     prefix = colorstr('ONNX:')
     try:
@@ -49,7 +49,7 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_
 
         print(f'\n{prefix} starting export with onnx {onnx.__version__}...')
         if export_three_output:
-            f = file.with_suffix('.three_output_opset%d.onnx'%opset)
+            f = file.with_suffix('.three_output_opset%d_size%d.onnx'%(opset, img_size))
             torch.onnx.export(model, img, f, verbose=False, opset_version=opset,
                               training=torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL,
                               do_constant_folding=not train,
@@ -57,7 +57,7 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_
                               output_names=['output1', 'output2', 'output3'],
                               dynamic_axes=None)
         else:
-            f = file.with_suffix('.one_output_opset%d.onnx'%opset)
+            f = file.with_suffix('.one_output_opset%d_size%d.onnx'%(opset, img_size))
             torch.onnx.export(model, img, f, verbose=False, opset_version=opset,
                               training=torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL,
                               do_constant_folding=not train,
@@ -166,7 +166,8 @@ def run(weights='./yolov5s.pt',  # weights path
     if 'torchscript' in include:
         export_torchscript(model, img, file, optimize)
     if 'onnx' in include:
-        export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_output)
+        export_onnx(model, img, file, opset, train, dynamic, simplify, 
+                    export_three_output, img_size[0])
     if 'coreml' in include:
         export_coreml(model, img, file)
 
