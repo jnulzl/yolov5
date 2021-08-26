@@ -50,6 +50,8 @@ VOC/
 *.onnx
 *.mlmodel
 *.torchscript
+to_caffe/weights/*.caffemodel
+to_caffe/weights/*.prototxt
 darknet53.conv.74
 yolov3-tiny.conv.15
 
