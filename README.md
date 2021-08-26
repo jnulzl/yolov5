@@ -38,8 +38,8 @@
         <img src="https://github.com/ultralytics/yolov5/releases/download/v1.0/logo-social-instagram.png" width="2%"/>
     </a>
 </div>
-
 <br>
+
 <p>
 YOLOv5 🚀 is a family of object detection architectures and models pretrained on the COCO dataset, and represents <a href="https://ultralytics.com">Ultralytics</a>
  open-source research into future vision AI methods, incorporating lessons learned and best practices evolved over thousands of hours of research and development.
@@ -51,6 +51,41 @@ YOLOv5 🚀 is a family of object detection architectures and models pretrained 
 -->
 
 </div>
+
+
+## Update
+
+基于如下版本进行
+[yolov5 - 79af114- Automatic TFLite uint8 determination-](https://github.com/ultralytics/yolov5/tree/79af1144c270ac7169553d450b9170f9c60f92e4)
+
+- 增加导出onnx中是否包含Detect层功能(2021-08-24)
+
+```shell
+# 1、官方导出模式，与原有导出格式一致(导出的onnx模型有1+3个输出，真正有用的只有一个)
+python export.py --weights build_test/weights/yolov5s.pt  --img-size 640 --include 'onnx' --opset 11 --simplify --export_origin
+
+# 2、不包含Detect层，导出的onnx模型有三个输出层，原有的后续层需自己实现
+python export.py --weights build_test/weights/yolov5s.pt  --img-size 640 --include 'onnx' --opset 11 --simplify --export_three_output
+
+# 3、包含Detect层，与官方导出的onnx模型基本一致，但是只保留了一个真正有用的输出
+python export.py --weights build_test/weights/yolov5s.pt  --img-size 640 --include 'onnx' --opset 11 --simplify
+
+# 4、一键执行上述2和3
+./convert_to_onnx.sh runs/train/exp4/weights/best.pt 320
+
+```
+
+**注意：** 如果同时用了`--export_origin`和` --export_three_output`，只有`--export_origin`生效
+
+
+- 增加onnx2caffe功能(2021-08-24)
+
+见：[onnx2caffe](to_caffe/README.md)
+
+
+
+## --------------------------------------------------------------------------------------
+
 
 ## <div align="center">Documentation</div>
 

@@ -25,6 +25,8 @@
 storage.googleapis.com
 runs/*
 data/*
+datasets
+models/jnulzl_*
 !data/hyps/*
 !data/images/zidane.jpg
 !data/images/bus.jpg
@@ -48,6 +50,7 @@ VOC/
 *.onnx
 *.mlmodel
 *.torchscript
+to_caffe/weights/*
 darknet53.conv.74
 yolov3-tiny.conv.15
 
