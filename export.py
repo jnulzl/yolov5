@@ -49,12 +49,16 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_
 
         print(f'\n{prefix} starting export with onnx {onnx.__version__}...')
         if export_three_output:
-            f = file.with_suffix('.three_output_opset%d_size%d.onnx'%(opset, img_size))
+            num_output = model.model[-1].nl
+            f = file.with_suffix('.%d_output_opset%d_size%d.onnx'%(num_output, opset, img_size))
+            output_names = []
+            for index in range(num_output):
+                output_names.append('output%d'%(index + 1))
             torch.onnx.export(model, img, f, verbose=False, opset_version=opset,
                               training=torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL,
                               do_constant_folding=not train,
                               input_names=['input'],
-                              output_names=['output1', 'output2', 'output3'],
+                              output_names=output_names,
                               dynamic_axes=None)
         else:
             f = file.with_suffix('.one_output_opset%d_size%d.onnx'%(opset, img_size))

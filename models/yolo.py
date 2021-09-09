@@ -21,6 +21,7 @@ from utils.general import make_divisible, check_file, set_logging
 from utils.plots import feature_visualization
 from utils.torch_utils import time_sync, fuse_conv_and_bn, model_info, scale_img, initialize_weights, \
     select_device, copy_attr
+from models.onnx_simplify import check_onnx, simplify_onnx, remove_initializer_from_input
 
 try:
     import thop  # for FLOPs computation
@@ -54,10 +55,18 @@ class Detect(nn.Module):
         """
         self.export_origin = True # origin export mode
         self.export_three_output = False # export three output and then processing left layers by myself using cpu
+        self.export_only_for_view = False
 
     def forward(self, x):
         z = []  # inference output
         z_jnulzl = [] # add by jnulzl
+        if self.export_only_for_view:
+            for i in range(self.nl):
+                x[i] = self.m[i](x[i])  # conv
+                bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+                x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+            return x
+
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
@@ -310,19 +319,51 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', type=str, default='yolov5s.yaml', help='model.yaml')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--profile', action='store_true', help='profile model speed')
+    parser.add_argument('--export_three_output', action='store_true', help='export three output')
     opt = parser.parse_args()
     opt.cfg = check_file(opt.cfg)  # check file
     set_logging()
-    device = select_device(opt.device)
+    # device = select_device(opt.device)
 
     # Create model
-    model = Model(opt.cfg).to(device)
-    model.train()
+    model = Model(opt.cfg)
+    # model.train()
 
     # Profile
     if opt.profile:
         img = torch.rand(8 if torch.cuda.is_available() else 1, 3, 640, 640).to(device)
         y = model(img, profile=True)
+
+    # ONNX export
+    model.fuse()
+    model.model[-1].export_origin = False
+    model.model[-1].export_only_for_view = True
+    model.model[-1].export_three_output = opt.export_three_output
+    img = torch.rand(1, 3, 320, 320)
+    onnx_path = opt.cfg.replace('.yaml', '.onnx')
+    if model.model[-1].export_three_output:
+        output_names = []
+        for index in range(model.model[-1].nl):
+            output_names.append('output%d'%(index + 1))
+    else:
+        output_names=['output']
+        
+    torch.onnx.export(model, img, onnx_path, 
+                        input_names=['input'],
+                        output_names=output_names,
+                        training=torch.onnx.TrainingMode.EVAL,
+                        do_constant_folding=True,
+                        dynamic_axes=None,
+                        verbose=True, 
+                        opset_version=11)
+
+    print("Model check")
+    check_onnx(onnx_path)
+    print("Simplify onnx model")
+    simplify_onnx(onnx_path)
+    remove_initializer_from_input(onnx_path)
+    # print(onnx.helper.printable_graph(model.graph))  # print a human readable representation of the graph
+    print('Export complete. ONNX model saved to %s\nView with https://github.com/lutzroeder/netron' % onnx_path)
 
     # Tensorboard (not working https://github.com/ultralytics/yolov5/issues/2898)
     # from torch.utils.tensorboard import SummaryWriter
