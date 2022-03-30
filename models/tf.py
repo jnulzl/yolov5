@@ -116,13 +116,15 @@ class tf_Focus(keras.layers.Layer):
         # ch_in, ch_out, kernel, stride, padding, groups
         super(tf_Focus, self).__init__()
         self.conv = tf_Conv(c1 * 4, c2, k, s, p, g, act, w.conv)
+        self.conv1 = tf_Conv(c1, 4 * c1, k=3, s=2, w = w.conv1)
 
     def call(self, inputs):  # x(b,w,h,c) -> y(b,w/2,h/2,4c)
         # inputs = inputs / 255.  # normalize 0-255 to 0-1
-        return self.conv(tf.concat([inputs[:, ::2, ::2, :],
-                                    inputs[:, 1::2, ::2, :],
-                                    inputs[:, ::2, 1::2, :],
-                                    inputs[:, 1::2, 1::2, :]], 3))
+        return self.conv(self.conv1(inputs))
+        # return self.conv(tf.concat([inputs[:, ::2, ::2, :],
+        #                             inputs[:, 1::2, ::2, :],
+        #                             inputs[:, ::2, 1::2, :],
+        #                             inputs[:, 1::2, 1::2, :]], 3))
 
 
 class tf_Bottleneck(keras.layers.Layer):
@@ -509,13 +511,14 @@ if __name__ == "__main__":
             print('\nStarting TFLite export with TensorFlow %s...' % tf.__version__)
 
             # fp32 TFLite model export ---------------------------------------------------------------------------------
-            # converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
-            # converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
-            # converter.allow_custom_ops = False
-            # converter.experimental_new_converter = True
-            # tflite_model = converter.convert()
-            # f = opt.weights.replace('.pt', '.tflite')  # filename
-            # open(f, "wb").write(tflite_model)
+            converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
+            converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
+            converter.allow_custom_ops = False
+            converter.experimental_new_converter = True
+            tflite_model = converter.convert()
+            f = opt.weights.replace('.pt', '-fp32.tflite')  # filename
+            open(f, "wb").write(tflite_model)
+            print('\nTFLite export success, saved as %s' % f)
 
             # fp16 TFLite model export ---------------------------------------------------------------------------------
             converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)

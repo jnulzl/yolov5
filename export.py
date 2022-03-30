@@ -25,13 +25,12 @@ from utils.activations import Hardswish, SiLU
 from utils.general import colorstr, check_img_size, check_requirements, file_size, set_logging
 from utils.torch_utils import select_device
 
-
 def export_torchscript(model, img, file, optimize):
     # TorchScript model export
     prefix = colorstr('TorchScript:')
     try:
         print(f'\n{prefix} starting export with torch {torch.__version__}...')
-        f = file.with_suffix('.torchscript.pt')
+        f = file.with_suffix('.size%d.torchscript.pt'%(img.shape[-1]))
         ts = torch.jit.trace(model, img, strict=False)
         (optimize_for_mobile(ts) if optimize else ts).save(f)
         print(f'{prefix} export success, saved as {f} ({file_size(f):.1f} MB)')

@@ -191,6 +191,8 @@ class Model(nn.Module):
                     m.export_origin = True
                 if not hasattr(m, 'export_three_output'):
                     m.export_three_output = False
+                if not hasattr(m, 'export_only_for_view'):
+                    m.export_only_for_view = False
             x = m(x)  # run
             y.append(x if m.i in self.save else None)  # save output
 
