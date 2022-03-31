@@ -260,8 +260,12 @@ class tf_Upsample(keras.layers.Layer):
         # self.upsample = keras.layers.UpSampling2D(size=scale_factor, interpolation=mode)
         if opt.tf_raw_resize:
             # with default arguments: align_corners=False, half_pixel_centers=False
-            self.upsample = lambda x: tf.raw_ops.ResizeNearestNeighbor(images=x,
-                                                                       size=(x.shape[1] * 2, x.shape[2] * 2))
+            if 'nearest' == mode:
+                self.upsample = lambda x: tf.raw_ops.ResizeNearestNeighbor(images=x,
+                                                                           size=(x.shape[1] * 2, x.shape[2] * 2))
+            else:
+                self.upsample = lambda x: tf.raw_ops.ResizeBilinear(images=x,
+                                                                           size=(x.shape[1] * 2, x.shape[2] * 2))
         else:
             self.upsample = lambda x: tf.image.resize(x, (x.shape[1] * 2, x.shape[2] * 2), method=mode)
 
@@ -316,6 +320,8 @@ def parse_model(d, ch, model):  # model_dict, input_channels(3)
             c2 = ch[f]
 
         tf_m = eval('tf_' + m_str.replace('nn.', ''))
+        if 'nn.Upsample' == m_str and 4 == len(args):
+            args = args[:-1]
         m_ = keras.Sequential([tf_m(*args, w=model.model[i][j]) for j in range(n)]) if n > 1 \
             else tf_m(*args, w=model.model[i])  # module
 
@@ -373,6 +379,9 @@ class tf_Model():
                 return nms, x[1]
 
         return x[0]  # output only first tensor [1,6300,85] = [xywh, conf, class0, class1, ...]
+        # output only first tensor [1,6300,85] = [xywh, conf, class0, class1, ...]
+        # return tf.concat([x, y, w, h,  x[0][..., 4:]], axis=-1)
+        # return x[0]  # output only first tensor [1,6300,85] = [xywh, conf, class0, class1, ...]
         # x = x[0][0]  # [x(1,6300,85), ...] to x(6300,85)
         # xywh = x[..., :4]  # x(6300,4) boxes
         # conf = x[..., 4:5]  # x(6300,1) confidences
@@ -516,7 +525,8 @@ if __name__ == "__main__":
             converter.allow_custom_ops = False
             converter.experimental_new_converter = True
             tflite_model = converter.convert()
-            f = opt.weights.replace('.pt', '-fp32.tflite')  # filename
+            f_prefix = os.path.join(os.path.dirname(opt.weights), opt.weights.split(os.path.sep)[-4])
+            f = f_prefix + '_fp32.tflite'  # filename
             open(f, "wb").write(tflite_model)
             print('\nTFLite export success, saved as %s' % f)
 
@@ -529,7 +539,7 @@ if __name__ == "__main__":
             converter.allow_custom_ops = False
             converter.experimental_new_converter = True
             tflite_model = converter.convert()
-            f = opt.weights.replace('.pt', '-fp16.tflite')  # filename
+            f = f_prefix + '_fp16.tflite'  # filename
             open(f, "wb").write(tflite_model)
             print('\nTFLite export success, saved as %s' % f)
 
@@ -547,12 +557,12 @@ if __name__ == "__main__":
                 converter.representative_dataset = representative_dataset_gen
                 converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
                 converter.inference_input_type = tf.uint8  # or tf.int8
-                converter.inference_output_type = tf.uint8  # or tf.int8
+                converter.inference_output_type = tf.float32  # or tf.int8
                 converter.allow_custom_ops = False
                 converter.experimental_new_converter = True
                 converter.experimental_new_quantizer = False
                 tflite_model = converter.convert()
-                f = opt.weights.replace('.pt', '-int8.tflite')  # filename
+                f = f_prefix + '_int8.tflite'  # filename
                 open(f, "wb").write(tflite_model)
                 print('\nTFLite (int8) export success, saved as %s' % f)
 
