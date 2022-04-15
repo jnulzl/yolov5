@@ -120,11 +120,13 @@ class tf_Focus(keras.layers.Layer):
 
     def call(self, inputs):  # x(b,w,h,c) -> y(b,w/2,h/2,4c)
         # inputs = inputs / 255.  # normalize 0-255 to 0-1
-        return self.conv(self.conv1(inputs))
-        # return self.conv(tf.concat([inputs[:, ::2, ::2, :],
-        #                             inputs[:, 1::2, ::2, :],
-        #                             inputs[:, ::2, 1::2, :],
-        #                             inputs[:, 1::2, 1::2, :]], 3))
+        if 'USE_FOCUS' in os.environ and os.environ['USE_FOCUS']:
+            return self.conv(tf.concat([inputs[:, ::2, ::2, :],
+                                        inputs[:, 1::2, ::2, :],
+                                        inputs[:, ::2, 1::2, :],
+                                        inputs[:, 1::2, 1::2, :]], 3))
+        else:
+            return self.conv(self.conv1(inputs))
 
 
 class tf_Bottleneck(keras.layers.Layer):
@@ -525,7 +527,8 @@ if __name__ == "__main__":
             converter.allow_custom_ops = False
             converter.experimental_new_converter = True
             tflite_model = converter.convert()
-            f_prefix = os.path.join(os.path.dirname(opt.weights), opt.weights.split(os.path.sep)[-4])
+            f_prefix = os.path.join(os.path.dirname(opt.weights), opt.weights.split(os.path.sep)[-4]) +  \
+                        "_" + str(opt.img_size[0])
             f = f_prefix + '_fp32.tflite'  # filename
             open(f, "wb").write(tflite_model)
             print('\nTFLite export success, saved as %s' % f)

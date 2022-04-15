@@ -10,6 +10,7 @@ import argparse
 import logging
 import math
 import os
+import cv2
 import random
 import sys
 import time
@@ -292,7 +293,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
-
+                
             # Warmup
             if ni <= nw:
                 xi = [0, nw]  # x interp
@@ -363,7 +364,8 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
                                            verbose=nc < 50 and final_epoch,
                                            plots=plots and final_epoch,
                                            callbacks=callbacks,
-                                           compute_loss=compute_loss)
+                                           compute_loss=compute_loss
+                                           )
 
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
@@ -405,7 +407,8 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
                                             dataloader=val_loader,
                                             save_dir=save_dir,
                                             save_json=True,
-                                            plots=False)
+                                            plots=False
+                                            )
             # Strip optimizers
             for f in last, best:
                 if f.exists():

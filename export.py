@@ -7,6 +7,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -28,9 +29,10 @@ from utils.torch_utils import select_device
 def export_torchscript(model, img, file, optimize):
     # TorchScript model export
     prefix = colorstr('TorchScript:')
+    file_prefix = str(file).split(os.path.sep)[-4]
     try:
         print(f'\n{prefix} starting export with torch {torch.__version__}...')
-        f = file.with_suffix('.size%d.torchscript.pt'%(img.shape[-1]))
+        f = file.with_name('%s_size%d.torchscript.pt'%(file_prefix, img.shape[-1]))
         ts = torch.jit.trace(model, img, strict=False)
         (optimize_for_mobile(ts) if optimize else ts).save(f)
         print(f'{prefix} export success, saved as {f} ({file_size(f):.1f} MB)')
@@ -42,6 +44,9 @@ def export_torchscript(model, img, file, optimize):
 def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_output, img_size):
     # ONNX model export
     prefix = colorstr('ONNX:')
+    file_prefix = str(file).split(os.path.sep)[-4]
+    if dynamic:
+        file_prefix += '_dynamic' 
     try:
         check_requirements(('onnx', 'onnx-simplifier'))
         import onnx
@@ -49,7 +54,7 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_
         print(f'\n{prefix} starting export with onnx {onnx.__version__}...')
         if export_three_output:
             num_output = model.model[-1].nl
-            f = file.with_suffix('.%d_output_opset%d_size%d.onnx'%(num_output, opset, img_size))
+            f = file.with_name('%s_%d_output_opset%d_size%d.onnx'%(file_prefix, num_output, opset, img_size))
             output_names = []
             for index in range(num_output):
                 output_names.append('output%d'%(index + 1))
@@ -58,16 +63,20 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_
                               do_constant_folding=not train,
                               input_names=['input'],
                               output_names=output_names,
-                              dynamic_axes=None)
+                              dynamic_axes={'input': {2: 'height', 3: 'width'},  # shape(1,3,320,320)
+                                            'output1': {1: 'height', 2: 'width'},  # shape(3, 40, 40, 6)
+                                            'output2': {1: 'height', 2: 'width'},  # shape(3, 20, 20, 6)
+                                            'output3': {1: 'height', 2: 'width'}  # shape(3, 10, 10, 6)
+                                            } if dynamic else None)
         else:
-            f = file.with_suffix('.one_output_opset%d_size%d.onnx'%(opset, img_size))
+            f = file.with_name('%s_one_output_opset%d_size%d.onnx'%(file_prefix, opset, img_size))
             torch.onnx.export(model, img, f, verbose=False, opset_version=opset,
                               training=torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL,
                               do_constant_folding=not train,
                               input_names=['input'],
                               output_names=['output'],
-                              dynamic_axes={'input': {0: 'batch', 2: 'height', 3: 'width'},  # shape(1,3,640,640)
-                                            'output': {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
+                              dynamic_axes={'input': {0: 'batch', 2: 'height', 3: 'width'},  # shape(1,3,320,320)
+                                            'output': {0: 'batch', 1: 'anchors'}  # shape(1, 6300, 6)
                                             } if dynamic else None)
 
         # Checks
@@ -84,7 +93,7 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_
                 model_onnx, check = onnxsim.simplify(
                     model_onnx,
                     dynamic_input_shape=dynamic,
-                    input_shapes={'images': list(img.shape)} if dynamic else None)
+                    input_shapes={'input': list(img.shape)} if dynamic else None)
                 assert check, 'assert check failed'
                 onnx.save(model_onnx, f)
             except Exception as e:
@@ -98,12 +107,13 @@ def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_
 def export_coreml(model, img, file):
     # CoreML model export
     prefix = colorstr('CoreML:')
+    file_prefix = str(file).split(os.path.sep)[-4]
     try:
         check_requirements(('coremltools',))
         import coremltools as ct
 
         print(f'\n{prefix} starting export with coremltools {ct.__version__}...')
-        f = file.with_suffix('.mlmodel')
+        f = file.with_name('%s_size%d.mlmodel'%(file_prefix, img.shape[-1]))
         model.train()  # CoreML exports should be placed in model.train() mode
         ts = torch.jit.trace(model, img, strict=False)  # TorchScript model
         model = ct.convert(ts, inputs=[ct.ImageType('image', shape=img.shape, scale=1 / 255.0, bias=[0, 0, 0])])
@@ -127,6 +137,7 @@ def run(weights='./yolov5s.pt',  # weights path
         dynamic=False,  # ONNX: dynamic axes
         simplify=False,  # ONNX: simplify model
         opset=12,  # ONNX: opset version
+        is_gray_input=False,
         ):
     t = time.time()
     include = [x.lower() for x in include]
@@ -142,7 +153,7 @@ def run(weights='./yolov5s.pt',  # weights path
     # Input
     gs = int(max(model.stride))  # grid size (max stride)
     img_size = [check_img_size(x, gs) for x in img_size]  # verify img_size are gs-multiples
-    img = torch.zeros(batch_size, 3, *img_size).to(device)  # image size(1,3,320,192) iDetection
+    img = torch.zeros(batch_size, 1 if is_gray_input else 3, *img_size).to(device)  # image size(1,3,320,192) iDetection
 
     # Update model
     if half:
@@ -196,6 +207,7 @@ def parse_opt():
     parser.add_argument('--dynamic', action='store_true', help='ONNX: dynamic axes')
     parser.add_argument('--simplify', action='store_true', help='ONNX: simplify model')
     parser.add_argument('--opset', type=int, default=11, help='ONNX: opset version')
+    parser.add_argument('--is_gray_input', action='store_true', help='input image is gray')
     opt = parser.parse_args()
     return opt
 

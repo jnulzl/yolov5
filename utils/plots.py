@@ -6,7 +6,7 @@ Plotting utils
 import math
 from copy import copy
 from pathlib import Path
-
+import os
 import cv2
 import matplotlib
 import matplotlib.pyplot as plt
@@ -158,7 +158,8 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
         img = img.transpose(1, 2, 0)
         if scale_factor < 1:
             img = cv2.resize(img, (w, h))
-
+        if 'USE_GRAY_INPUT' in os.environ and os.environ['USE_GRAY_INPUT']:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR) # gray to BGR
         mosaic[block_y:block_y + h, block_x:block_x + w, :] = img
         if len(targets) > 0:
             image_targets = targets[targets[:, 0] == i]

@@ -221,7 +221,11 @@ class LoadImages:  # for inference
         img = letterbox(img0, self.img_size, stride=self.stride, auto=self.auto)[0]
 
         # Convert
-        img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+        if 'USE_GRAY_INPUT' in os.environ and os.environ['USE_GRAY_INPUT']:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # bgr to gray
+            img = img.reshape([1, *img.shape]) # HW to CHW
+        else:
+            img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
 
         return path, img, img0, self.cap
@@ -267,7 +271,11 @@ class LoadWebcam:  # for inference
         img = letterbox(img0, self.img_size, stride=self.stride)[0]
 
         # Convert
-        img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+        if 'USE_GRAY_INPUT' in os.environ and os.environ['USE_GRAY_INPUT']:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # bgr to gray
+            img = img.reshape([1, *img.shape]) # HW to CHW
+        else:
+            img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
 
         return img_path, img, img0, None
@@ -349,8 +357,17 @@ class LoadStreams:  # multiple IP or RTSP cameras
         img = np.stack(img, 0)
 
         # Convert
-        img = img[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW
-        img = np.ascontiguousarray(img)
+        if 'USE_GRAY_INPUT' in os.environ and os.environ['USE_GRAY_INPUT']:
+            imgs = []
+            for item_img in img:
+                item_img = cv2.cvtColor(item_img, cv2.COLOR_BGR2GRAY) # bgr to gray
+                tmp_img = item_img.reshape([1, *item_img.shape]) # HW to CHW
+                imgs.append(tmp_img)
+            imgs_array = np.array(imgs).reshape([-1, 1, *item_img.shape])
+            img = np.ascontiguousarray(imgs_array)
+        else:
+            img = img[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW
+            img = np.ascontiguousarray(img)
 
         return self.sources, img, img0, None
 
@@ -593,7 +610,14 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             labels_out[:, 1:] = torch.from_numpy(labels)
 
         # Convert
-        img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+        if 'USE_GRAY_INPUT' in os.environ and os.environ['USE_GRAY_INPUT']:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # bgr to gray
+            img = img.reshape([1, *img.shape]) # HW to CHW
+        else:
+            if random.random() < hyp['rand_bgr']:
+                img = img.transpose((2, 0, 1))  # HWC to CHW
+            else:
+                img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
 
         return torch.from_numpy(img), labels_out, self.img_files[index], shapes
