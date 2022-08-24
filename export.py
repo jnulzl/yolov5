@@ -44,7 +44,7 @@ def export_torchscript(model, img, file, optimize):
 def export_onnx(model, img, file, opset, train, dynamic, simplify, export_three_output, img_size):
     # ONNX model export
     prefix = colorstr('ONNX:')
-    file_prefix = str(file).split(os.path.sep)[-4]
+    file_prefix = str(file).split(os.path.sep)[-3]
     if dynamic:
         file_prefix += '_dynamic' 
     try:

@@ -527,7 +527,7 @@ if __name__ == "__main__":
             converter.allow_custom_ops = False
             converter.experimental_new_converter = True
             tflite_model = converter.convert()
-            f_prefix = os.path.join(os.path.dirname(opt.weights), opt.weights.split(os.path.sep)[-4]) +  \
+            f_prefix = os.path.join(os.path.dirname(opt.weights), opt.weights.split(os.path.sep)[-3]) +  \
                         "_" + str(opt.img_size[0])
             f = f_prefix + '_fp32.tflite'  # filename
             open(f, "wb").write(tflite_model)
