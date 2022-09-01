@@ -329,11 +329,13 @@ if __name__ == '__main__':
 
     # Create model
     model = Model(opt.cfg)
-    # model.train()
+    # print(model)
+    model.eval()
+    model.fuse()
 
     # Profile
     if opt.profile:
-        img = torch.rand(8 if torch.cuda.is_available() else 1, 3, 640, 640).to(device)
+        img = torch.rand(8 if torch.cuda.is_available() else 1, 3, 640, 640).to(opt.device)
         y = model(img, profile=True)
 
     # ONNX export
@@ -356,7 +358,7 @@ if __name__ == '__main__':
                         training=torch.onnx.TrainingMode.EVAL,
                         do_constant_folding=True,
                         dynamic_axes=None,
-                        verbose=True, 
+                        verbose=False,
                         opset_version=11)
 
     print("Model check")
